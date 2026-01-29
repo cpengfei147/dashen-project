@@ -1,7 +1,8 @@
 # MVP-0 最小验证版本任务列表
 
-> 目标：2-4周内完成，验证核心对话流程可行性
+> 目标：2周内完成，验证核心对话流程可行性
 > 日期：2026-01-29
+> 更新：根据团队情况调整（DeepSeek + SQLite + 前端 + Vibe Coding）
 
 ---
 
@@ -11,6 +12,7 @@
 - 一个能自然对话的基础Agent
 - 能收集核心搬家信息（出发地、目的地、日期）
 - 能给出报价
+- 简单的H5对话界面
 
 **不做什么：**
 - ❌ 复杂的多维度理解层
@@ -24,201 +26,322 @@
 
 ---
 
-## 任务分解
+## 技术选型（MVP-0简化版）
 
-### 阶段一：项目初始化（2-3天）
-
-#### 1.1 项目结构搭建
-- [ ] 创建Python项目结构
-  ```
-  dashen-project/
-  ├── src/
-  │   ├── agent/           # Agent核心
-  │   │   ├── __init__.py
-  │   │   ├── core.py      # 主Agent
-  │   │   ├── prompts.py   # Prompt模板
-  │   │   └── memory.py    # 简单记忆
-  │   ├── services/        # 业务服务
-  │   │   ├── __init__.py
-  │   │   ├── quote.py     # 报价计算
-  │   │   └── order.py     # 订单服务
-  │   ├── api/             # API接口
-  │   │   ├── __init__.py
-  │   │   ├── main.py      # FastAPI入口
-  │   │   └── routes.py    # 路由定义
-  │   ├── models/          # 数据模型
-  │   │   ├── __init__.py
-  │   │   └── schemas.py   # Pydantic模型
-  │   └── config.py        # 配置
-  ├── tests/               # 测试
-  ├── requirements.txt
-  ├── .env.example
-  └── README.md
-  ```
-- [ ] 配置依赖管理（requirements.txt）
-- [ ] 配置环境变量（.env）
-- [ ] 配置日志
-
-#### 1.2 基础设施
-- [ ] 配置LLM客户端（OpenAI/通义千问）
-- [ ] 配置Redis连接（会话存储）
-- [ ] 配置PostgreSQL连接（订单存储）
-- [ ] 编写配置加载模块
+| 组件 | 选择 | 说明 |
+|------|------|------|
+| 后端框架 | FastAPI | 异步支持好，开发快 |
+| LLM | **DeepSeek** | 成本极低，中文能力强 |
+| 数据库 | **SQLite** | 零配置，开发简单，后期可换PostgreSQL |
+| 会话存储 | **SQLite** | 简化架构，不用Redis |
+| 前端 | **Vue 3 + Vant** | 移动端H5，组件丰富 |
+| 部署 | **本地Docker** | 先跑通，后期再上云 |
 
 ---
 
-### 阶段二：核心Agent实现（5-7天）
+## 任务分解
 
-#### 2.1 简单记忆系统
-- [ ] 设计会话数据结构
-  ```python
-  class SessionData:
-      session_id: str
-      messages: List[Message]  # 最近N轮对话
-      collected_data: dict     # 已收集的信息
-      stage: str               # 当前阶段
-      created_at: datetime
+### 阶段一：项目初始化（1天）
+
+#### 1.1 后端项目结构
+- [ ] 创建Python项目结构
   ```
-- [ ] 实现Redis存储/读取
-- [ ] 实现会话过期清理
+  src/
+  ├── agent/           # Agent核心
+  │   ├── __init__.py
+  │   ├── core.py      # 主Agent
+  │   ├── prompts.py   # Prompt模板
+  │   └── memory.py    # 简单记忆
+  ├── services/        # 业务服务
+  │   ├── __init__.py
+  │   ├── quote.py     # 报价计算
+  │   └── order.py     # 订单服务
+  ├── api/             # API接口
+  │   ├── __init__.py
+  │   ├── main.py      # FastAPI入口
+  │   └── routes.py    # 路由定义
+  ├── models/          # 数据模型
+  │   ├── __init__.py
+  │   ├── schemas.py   # Pydantic模型
+  │   └── database.py  # SQLite模型
+  └── config.py        # 配置
+  ```
+- [ ] 配置requirements.txt
+  ```
+  fastapi==0.109.0
+  uvicorn[standard]==0.27.0
+  openai==1.12.0  # DeepSeek兼容OpenAI接口
+  sqlalchemy==2.0.25
+  pydantic==2.6.0
+  python-dotenv==1.0.0
+  ```
+- [ ] 配置.env（DeepSeek API Key）
 
-#### 2.2 Prompt设计
-- [ ] 设计系统Prompt（人格设定）
+#### 1.2 前端项目结构
+- [ ] 创建Vue 3项目
+  ```
+  web/
+  ├── src/
+  │   ├── views/
+  │   │   └── Chat.vue      # 对话页面
+  │   ├── components/
+  │   │   ├── MessageList.vue   # 消息列表
+  │   │   ├── MessageInput.vue  # 输入框
+  │   │   └── QuoteCard.vue     # 报价卡片
+  │   ├── api/
+  │   │   └── chat.js       # API调用
+  │   ├── App.vue
+  │   └── main.js
+  ├── package.json
+  └── vite.config.js
+  ```
+- [ ] 安装依赖（Vue 3 + Vant + Axios）
+
+---
+
+### 阶段二：核心Agent实现（3-4天）
+
+#### 2.1 DeepSeek客户端配置
+- [ ] 配置DeepSeek API（兼容OpenAI接口）
+  ```python
+  from openai import OpenAI
+
+  client = OpenAI(
+      api_key="your-deepseek-api-key",
+      base_url="https://api.deepseek.com/v1"
+  )
+  ```
+- [ ] 封装LLM调用方法
+- [ ] 实现流式响应
+
+#### 2.2 简单记忆系统（SQLite）
+- [ ] 设计会话表
+  ```sql
+  CREATE TABLE sessions (
+      id TEXT PRIMARY KEY,
+      messages TEXT,        -- JSON存储对话历史
+      collected_data TEXT,  -- JSON存储已收集信息
+      stage TEXT,           -- 当前阶段
+      created_at TIMESTAMP,
+      updated_at TIMESTAMP
+  );
+  ```
+- [ ] 设计订单表
+  ```sql
+  CREATE TABLE orders (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      address_from TEXT,
+      address_to TEXT,
+      moving_date TEXT,
+      floor_from INTEGER,
+      floor_to INTEGER,
+      has_elevator_from BOOLEAN,
+      has_elevator_to BOOLEAN,
+      items_description TEXT,
+      quote_amount REAL,
+      status TEXT,
+      created_at TIMESTAMP
+  );
+  ```
+- [ ] 实现SQLAlchemy模型
+- [ ] 实现会话CRUD
+
+#### 2.3 Prompt设计
+- [ ] 系统Prompt
   ```
   你是"小搬"，一个耐心、专业、温暖的搬家助手。
-  你的目标是帮助用户完成搬家预约。
 
-  对话风格：
-  - 像朋友聊天一样自然
-  - 每次只问1-2个问题
-  - 先确认收到的信息，再追问下一个
-  ...
+  【你的任务】
+  帮助用户完成搬家预约，需要收集以下信息：
+  - 搬出地址（必填）
+  - 搬入地址（必填）
+  - 搬家日期（必填）
+  - 楼层和电梯情况（可选）
+  - 物品描述（可选）
+
+  【对话风格】
+  - 像朋友聊天一样自然，不要像机器人
+  - 每次只问1-2个问题，不要一次问太多
+  - 用户提供信息后，先确认再问下一个
+  - 不要说"别担心"、"亲"这类词
+
+  【输出格式】
+  每次回复需要输出JSON格式：
+  {
+    "reply": "你要说的话",
+    "extracted_info": {
+      "address_from": "提取到的搬出地址或null",
+      "address_to": "提取到的搬入地址或null",
+      "moving_date": "提取到的日期或null",
+      "floor_from": "楼层数字或null",
+      "floor_to": "楼层数字或null",
+      "has_elevator_from": "true/false/null",
+      "has_elevator_to": "true/false/null",
+      "items_description": "物品描述或null"
+    },
+    "stage": "collecting/quoting/confirming/completed"
+  }
   ```
-- [ ] 设计信息收集Prompt
-- [ ] 设计报价展示Prompt
-- [ ] 设计确认订单Prompt
+- [ ] 报价展示Prompt
+- [ ] 订单确认Prompt
 
-#### 2.3 主Agent实现
-- [ ] 实现Agent核心类
+#### 2.4 主Agent实现
+- [ ] 实现Agent类
   ```python
   class MovingAgent:
       async def chat(self, session_id: str, message: str) -> AgentResponse:
-          # 1. 加载会话
-          # 2. 构建Prompt（系统+历史+用户消息）
-          # 3. 调用LLM
-          # 4. 解析响应，提取实体
-          # 5. 更新会话状态
-          # 6. 返回响应
-  ```
-- [ ] 实现实体提取（从LLM响应中提取结构化数据）
-- [ ] 实现阶段判断（收集中/报价中/确认中）
-- [ ] 实现流式响应支持
+          # 1. 加载/创建会话
+          session = await self.get_or_create_session(session_id)
 
-#### 2.4 对话流程控制
-- [ ] 实现信息收集流程
-  - 必填：address_from, address_to, moving_date
-  - 可选：floor_from, floor_to, has_elevator, items_description
-- [ ] 实现信息确认流程
-- [ ] 实现报价触发条件（必填信息收集完成）
-- [ ] 实现订单确认流程
+          # 2. 构建消息列表
+          messages = self.build_messages(session, message)
+
+          # 3. 调用DeepSeek
+          response = await self.call_llm(messages)
+
+          # 4. 解析JSON响应
+          parsed = self.parse_response(response)
+
+          # 5. 更新会话状态
+          await self.update_session(session, message, parsed)
+
+          # 6. 如果信息完整，计算报价
+          if self.is_info_complete(session):
+              quote = self.calculate_quote(session)
+              parsed['quote'] = quote
+
+          return parsed
+  ```
+- [ ] 实现信息完整性检查
+- [ ] 实现阶段流转逻辑
 
 ---
 
-### 阶段三：业务服务实现（3-4天）
+### 阶段三：业务服务实现（1-2天）
 
-#### 3.1 报价计算服务
-- [ ] 设计报价规则配置
+#### 3.1 报价计算
+- [ ] 定义报价规则
   ```python
-  PRICING_CONFIG = {
-      "base_prices": {
-          "same_district": 300,
-          "cross_district": 400,
-          "cross_city": 800
-      },
-      "floor_charges": {
-          "no_elevator_per_floor": 50
-      },
-      "time_adjustments": {
-          "weekend_multiplier": 1.1
-      }
+  PRICING = {
+      "base_price": 300,           # 基础价格
+      "cross_district_extra": 100, # 跨区加价
+      "floor_no_elevator": 50,     # 无电梯每层
+      "weekend_multiplier": 1.1,   # 周末加价
   }
   ```
-- [ ] 实现报价计算逻辑
-- [ ] 实现报价明细生成
+- [ ] 实现报价计算函数
+- [ ] 生成报价明细
 
 #### 3.2 订单服务
-- [ ] 设计订单表结构
-- [ ] 实现订单创建
-- [ ] 实现订单查询
-- [ ] 实现订单状态更新
-
-#### 3.3 地址处理（简化版）
-- [ ] 实现简单的地址解析（提取区/街道）
-- [ ] 实现同区/跨区判断
-- [ ] （可选）集成地图API验证地址
+- [ ] 实现创建订单
+- [ ] 实现查询订单
+- [ ] 实现确认订单
 
 ---
 
-### 阶段四：API接口实现（2-3天）
+### 阶段四：API接口实现（1天）
 
-#### 4.1 核心接口
-- [ ] POST /api/v1/chat/message - 发送消息
+#### 4.1 对话接口
+- [ ] POST /api/chat - 发送消息
   ```python
-  @router.post("/message")
-  async def send_message(request: SendMessageRequest):
-      # session_id, message
-      # 返回: reply, collected_data, stage
+  @router.post("/chat")
+  async def chat(request: ChatRequest):
+      response = await agent.chat(
+          session_id=request.session_id or str(uuid4()),
+          message=request.message
+      )
+      return response
   ```
-- [ ] POST /api/v1/chat/message/stream - 流式发送消息
-- [ ] GET /api/v1/chat/sessions/{id} - 获取会话详情
+- [ ] GET /api/sessions/{id} - 获取会话
 
 #### 4.2 订单接口
-- [ ] GET /api/v1/orders - 获取订单列表
-- [ ] GET /api/v1/orders/{id} - 获取订单详情
-- [ ] POST /api/v1/orders/{id}/confirm - 确认订单
+- [ ] GET /api/orders/{id} - 获取订单
+- [ ] POST /api/orders/{id}/confirm - 确认订单
 
-#### 4.3 基础设施
-- [ ] 实现错误处理中间件
-- [ ] 实现请求日志
-- [ ] 实现CORS配置
+#### 4.3 配置CORS
+- [ ] 允许前端跨域访问
 
 ---
 
-### 阶段五：测试与调试（3-4天）
+### 阶段五：前端开发（2-3天）
 
-#### 5.1 单元测试
-- [ ] Agent核心逻辑测试
-- [ ] 报价计算测试
-- [ ] 订单服务测试
+#### 5.1 对话界面
+- [ ] 消息列表组件
+  - 用户消息（右侧，蓝色气泡）
+  - Agent消息（左侧，灰色气泡）
+  - 支持Markdown渲染
+- [ ] 输入框组件
+  - 文本输入
+  - 发送按钮
+  - 加载状态
+- [ ] 快捷回复组件
+  - 显示建议回复按钮
+  - 点击自动发送
 
-#### 5.2 对话测试
-- [ ] 正常流程测试（完整下单）
-- [ ] 信息补充测试（分多次提供信息）
-- [ ] 信息修改测试（纠正之前的信息）
-- [ ] 边界情况测试（空消息、超长消息等）
+#### 5.2 报价卡片
+- [ ] 报价展示卡片
+  - 价格明细
+  - 确认按钮
+- [ ] 订单确认卡片
+  - 订单信息汇总
+  - 确认/取消按钮
 
-#### 5.3 Prompt调优
-- [ ] 收集测试对话样本
-- [ ] 分析不理想的回复
-- [ ] 迭代优化Prompt
+#### 5.3 API对接
+- [ ] 封装API调用
+- [ ] 处理加载状态
+- [ ] 处理错误提示
 
-#### 5.4 性能测试
-- [ ] 测试单次响应延迟
-- [ ] 测试并发处理能力
+#### 5.4 样式优化
+- [ ] 移动端适配
+- [ ] 对话气泡样式
+- [ ] 整体视觉优化
 
 ---
 
-### 阶段六：部署与文档（1-2天）
+### 阶段六：联调与测试（1-2天）
 
-#### 6.1 部署
+#### 6.1 前后端联调
+- [ ] 对话流程联调
+- [ ] 报价展示联调
+- [ ] 订单确认联调
+
+#### 6.2 对话测试
+- [ ] 正常流程测试
+- [ ] 信息分多次提供
+- [ ] 信息修改测试
+- [ ] 边界情况测试
+
+#### 6.3 Prompt调优
+- [ ] 收集不理想的回复
+- [ ] 优化Prompt
+
+---
+
+### 阶段七：Docker部署（0.5天）
+
+#### 7.1 后端Docker
 - [ ] 编写Dockerfile
 - [ ] 编写docker-compose.yml
-- [ ] 部署到测试环境
 
-#### 6.2 文档
-- [ ] 编写API文档
-- [ ] 编写部署说明
-- [ ] 编写测试说明
+#### 7.2 前端构建
+- [ ] 构建静态文件
+- [ ] Nginx配置
+
+---
+
+## 时间规划（Vibe Coding加速版）
+
+| 阶段 | 任务 | 预估时间 |
+|------|------|---------|
+| 阶段一 | 项目初始化 | 0.5-1天 |
+| 阶段二 | 核心Agent实现 | 2-3天 |
+| 阶段三 | 业务服务实现 | 1天 |
+| 阶段四 | API接口实现 | 0.5-1天 |
+| 阶段五 | 前端开发 | 2-3天 |
+| 阶段六 | 联调与测试 | 1-2天 |
+| 阶段七 | Docker部署 | 0.5天 |
+| **总计** | | **8-11天（约2周）** |
 
 ---
 
@@ -229,40 +352,11 @@
 - [ ] 能根据信息生成报价
 - [ ] 能创建订单
 - [ ] 对话自然，不像填表单
+- [ ] H5界面可用，体验流畅
 
 ### 性能验收
 - [ ] 单次响应延迟 < 3秒
-- [ ] 支持 10 QPS 并发
-
-### 质量验收
-- [ ] 核心流程测试通过
-- [ ] 无阻塞性Bug
-
----
-
-## 时间规划
-
-| 阶段 | 任务 | 预估时间 |
-|------|------|---------|
-| 阶段一 | 项目初始化 | 2-3天 |
-| 阶段二 | 核心Agent实现 | 5-7天 |
-| 阶段三 | 业务服务实现 | 3-4天 |
-| 阶段四 | API接口实现 | 2-3天 |
-| 阶段五 | 测试与调试 | 3-4天 |
-| 阶段六 | 部署与文档 | 1-2天 |
-| **总计** | | **16-23天（约3-4周）** |
-
----
-
-## 技术选型（MVP-0简化版）
-
-| 组件 | 选择 | 说明 |
-|------|------|------|
-| 后端框架 | FastAPI | 异步支持好，开发快 |
-| LLM | 通义千问-Max 或 GPT-4o-mini | 成本考虑，先用便宜的 |
-| 会话存储 | Redis | 简单快速 |
-| 订单存储 | PostgreSQL | 可靠持久 |
-| 部署 | Docker | 便于部署和迁移 |
+- [ ] 前端加载 < 2秒
 
 ---
 
@@ -270,20 +364,36 @@
 
 | 风险 | 应对 |
 |------|------|
-| LLM响应不稳定 | 设置超时+重试，准备兜底话术 |
-| 实体提取不准确 | 用JSON格式输出，降低解析难度 |
+| DeepSeek响应不稳定 | 设置超时+重试，准备兜底话术 |
+| JSON解析失败 | 设计容错机制，多次尝试 |
 | Prompt效果不好 | 预留调优时间，收集bad case迭代 |
-| 时间不够 | 优先保证核心流程，其他功能可砍 |
 
 ---
 
-## 下一步（MVP-0完成后）
+## DeepSeek API 信息
 
-MVP-0验证成功后，进入MVP-1：
-- 添加情绪识别和处理
-- 添加图片识别
-- 完善记忆系统
-- 添加知识问答（RAG）
+**API文档：** https://platform.deepseek.com/api-docs
+
+**调用示例：**
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="your-api-key",
+    base_url="https://api.deepseek.com"
+)
+
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=[
+        {"role": "system", "content": "你是一个搬家助手"},
+        {"role": "user", "content": "我想搬家"}
+    ],
+    stream=True  # 支持流式
+)
+```
+
+**价格：** 约 ¥1/百万tokens（极低）
 
 ---
 
