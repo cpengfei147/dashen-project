@@ -1,0 +1,15 @@
+# FastAPI
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# LLM
+openai==1.12.0  # DeepSeek兼容OpenAI接口
+
+# Database
+sqlalchemy==2.0.25
+
+# Validation
+pydantic==2.6.0
+
+# Environment
+python-dotenv==1.0.0
